@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gogo – AI Travel Advisor</title>
+  <style>
+    :root { --accent: #1b7f79; --bg: #f6f4ef; --line: #e3ded4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: #1f2a30; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px; min-height: 100vh; display: flex; flex-direction: column; }
+    h1 { margin: 0 0 16px; }
+    #chat { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .msg { padding: 10px 14px; border-radius: 14px; max-width: 85%; white-space: pre-wrap; line-height: 1.5; }
+    .assistant { background: #fff; border: 1px solid var(--line); align-self: flex-start; }
+    .user { background: #dcefec; align-self: flex-end; }
+    .error { background: #fdecea; }
+    form { display: flex; gap: 8px; position: sticky; bottom: 0; padding: 14px 0; background: var(--bg); }
+    input { flex: 1; padding: 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; }
+    button { padding: 0 18px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .5; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🧭 Gogo</h1>
+    <div id="chat"></div>
+    <form id="form">
+      <input id="input" placeholder="Where would you like to go?" autocomplete="off" required>
+      <button id="send">Send</button>
+    </form>
+  </main>
+
+  <script>
+    // The browser only talks to *your* server (/api/chat). It never sees the API key.
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+    let messages = [];
+
+    function add(role, text, cls = "") {
+      const div = document.createElement("div");
+      div.className = `msg ${role} ${cls}`;
+      div.textContent = text;          // textContent: safe, no HTML injection
+      chat.appendChild(div);
+      div.scrollIntoView({ block: "end" });
+      return div;
+    }
+
+    fetch("/api/welcome").then(r => r.json()).then(d => add("assistant", d.message));
+
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      messages.push({ role: "user", content: text });
+      add("user", text);
+      send.disabled = true;
+      const thinking = add("assistant", "Gogo is planning…");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messages.slice(-40) }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+        thinking.textContent = data.reply;
+        messages.push({ role: "assistant", content: data.reply });
+      } catch (err) {
+        messages.pop();
+        thinking.textContent = `⚠️ ${err.message}`;
+        thinking.classList.add("error");
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
