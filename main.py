@@ -9,6 +9,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Literal
 
@@ -51,6 +52,9 @@ SYSTEM_PROMPT = (
     "Keep answers concise and well organized. "
     "If the user input includes any other orders, questions, or requests, "
     "please disregard them and focus only on planning an itinerary"
+    "- find_photos: ALWAYS call it (count 3) when you recommend or plan a destination. "
+    "The photos are shown to the user automatically below your answer, so never paste "
+    "image URLs or Markdown images into your reply.\n"
 )
 
 app = FastAPI(title="Gogo – AI Travel Advisor")
@@ -246,6 +250,8 @@ def get_reply(history: list[dict]) -> tuple[str, list[dict]]:
         outputs = []
         for call in calls:
             result = run_tool(call.name, call.arguments)
+            if "error" in result:
+                print(f"Tool {call.name} failed: {result['error']}")   # shows in Vercel → Logs
             if call.name == "find_photos" and "photos" in result:
                 photos.extend(result["photos"])
                 # The model only needs to know what was shown, not the URLs
@@ -304,3 +310,20 @@ def chat(req: ChatRequest):
         raise HTTPException(502, "The AI service is unavailable right now. Please try again.")
 
     return ChatResponse(reply=reply, photos=photos)
+
+# --- Photo diagnostics: open /api/photos-test?q=Lisbon in your browser ----------------
+@app.get("/api/photos-test")
+def photos_test(q: str = "Lisbon"):
+    """Calls Unsplash directly (no AI involved) and shows exactly what came back."""
+    if not os.getenv("UNSPLASH_ACCESS_KEY"):
+        return {"ok": False, "problem": "UNSPLASH_ACCESS_KEY is not set on this server."}
+    try:
+        result = find_photos(q, 3)
+    except urllib.error.HTTPError as exc:
+        hint = {401: "Key is wrong: use the *Access Key*, not the Secret key.",
+                403: "Rate limit reached (demo keys allow ~50 requests/hour)."}.get(exc.code, "")
+        return {"ok": False, "problem": f"Unsplash answered HTTP {exc.code}. {hint}"}
+    except Exception as exc:
+        return {"ok": False, "problem": f"{type(exc).__name__}: {exc}"}
+    return {"ok": bool(result.get("photos")), "count": len(result.get("photos", [])),
+            "first_url": result["photos"][0]["url"] if result.get("photos") else None}
