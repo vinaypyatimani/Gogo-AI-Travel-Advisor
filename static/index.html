@@ -2,105 +2,637 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Gogo – AI Travel Advisor</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23111'/><circle cx='16' cy='16' r='5' fill='%23fff'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    :root { --accent: #1b7f79; --bg: #f6f4ef; --line: #e3ded4; }
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --text: #0b0b0c;
+      --muted: #6e6e73;
+      --faint: #a1a1a6;
+      --line: #ececee;
+      --user: #0b0b0c;
+      --user-text: #ffffff;
+      --accent: #3b5bfd;
+      --accent-soft: rgba(59, 91, 253, .10);
+      --image: #f0a35e;
+      --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.06);
+      --radius: 18px;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0b0c; --surface: #151517; --text: #f2f2f3; --muted: #9a9aa0; --faint: #6b6b70;
+        --line: #26262a; --user: #f2f2f3; --user-text: #0b0b0c;
+        --accent: #7b93ff; --accent-soft: rgba(123, 147, 255, .14); --image: #f2b077;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+      }
+    }
+
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: #1f2a30; }
-    main { max-width: 760px; margin: 0 auto; padding: 24px 16px; min-height: 100vh; display: flex; flex-direction: column; }
-    h1 { margin: 0 0 16px; }
-    #chat { flex: 1; display: flex; flex-direction: column; gap: 10px; }
-    .msg { padding: 10px 14px; border-radius: 14px; max-width: 85%; white-space: pre-wrap; line-height: 1.5; }
-    .assistant { background: #fff; border: 1px solid var(--line); align-self: flex-start; }
-    .user { background: #dcefec; align-self: flex-end; }
-    .error { background: #fdecea; }
-    form { display: flex; gap: 8px; position: sticky; bottom: 0; padding: 14px 0; background: var(--bg); }
-    input { flex: 1; padding: 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; }
-    button { padding: 0 18px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
-    button:disabled { opacity: .5; }
-    .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; white-space: normal; }
-    .photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; display: block; background: var(--line); }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 15.5px; line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh; min-height: 100dvh;
+    }
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    /* ---------- Header ---------- */
+    header {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      background: color-mix(in srgb, var(--bg) 94%, transparent);
+      backdrop-filter: saturate(180%) blur(14px);
+      -webkit-backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid transparent;
+      transition: border-color .2s;
+    }
+    header.scrolled { border-bottom-color: var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -.01em; }
+    .brand .dot {
+      width: 22px; height: 22px; border-radius: 50%; background: var(--text);
+      display: grid; place-items: center;
+    }
+    .brand .dot::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--bg); }
+    .brand small { color: var(--faint); font-weight: 500; margin-left: 2px; }
+    .actions { display: flex; gap: 8px; align-items: center; }
+
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      height: 34px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: var(--surface);
+      font-size: 13px; color: var(--muted);
+      transition: border-color .15s, color .15s;
+    }
+    .pill:hover, .pill[aria-expanded="true"] { border-color: var(--text); color: var(--text); }
+    .pill .cost { font-family: var(--mono); color: var(--text); font-weight: 500; }
+    .pill .sep { width: 1px; height: 14px; background: var(--line); }
+    .icon-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1px solid var(--line); background: var(--surface);
+      display: grid; place-items: center; color: var(--muted);
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--text); }
+
+    /* ---------- Usage panel ---------- */
+    .usage-panel {
+      position: absolute; right: 20px; top: 58px; width: min(360px, calc(100vw - 32px));
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px;
+      opacity: 0; transform: translateY(-6px) scale(.98); pointer-events: none;
+      transition: opacity .16s ease, transform .16s ease;
+    }
+    .usage-panel.open { opacity: 1; transform: none; pointer-events: auto; }
+    .usage-label { font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+    .usage-total { font-size: 34px; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .usage-total span { font-size: 15px; color: var(--faint); font-weight: 500; margin-left: 4px; letter-spacing: 0; }
+
+    .bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--line); margin: 16px 0 10px; }
+    .bar i { display: block; height: 100%; transition: width .4s ease; }
+    .bar .b-in { background: var(--text); }
+    .bar .b-out { background: var(--accent); }
+    .bar .b-search { background: var(--faint); }
+    .bar .b-image { background: var(--image); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+    .legend b { font-weight: 500; color: var(--text); font-family: var(--mono); font-size: 11.5px; }
+    .legend .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 16px; }
+    .stats div { background: var(--surface); padding: 10px 12px; }
+    .stats dt { font-size: 11px; color: var(--muted); }
+    .stats dd { margin: 2px 0 0; font-family: var(--mono); font-size: 13.5px; font-weight: 500; }
+
+    .turns { margin: 14px 0 0; padding: 0; list-style: none; max-height: 132px; overflow-y: auto; }
+    .turns li { display: flex; justify-content: space-between; font-size: 12.5px; padding: 6px 0; border-top: 1px solid var(--line); color: var(--muted); }
+    .turns li span:last-child { font-family: var(--mono); color: var(--text); }
+    .turns:empty::after { content: "No replies yet."; display: block; font-size: 12.5px; color: var(--faint); padding-top: 4px; }
+    .usage-note { margin-top: 14px; font-size: 11.5px; color: var(--faint); line-height: 1.45; }
+
+    /* ---------- Main column ---------- */
+    main { max-width: 720px; margin: 0 auto; padding: 8px 20px 180px; }
+
+    /* Empty state */
+    .hero { padding: 14vh 0 28px; text-align: center; }
+    .hero h1 { font-size: clamp(34px, 6vw, 52px); font-weight: 600; letter-spacing: -.045em; line-height: 1.05; margin: 0; }
+    .hero h1 em { font-style: normal; color: var(--faint); }
+    .hero p { color: var(--muted); margin: 14px auto 0; max-width: 440px; }
+    .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 28px; }
+    .chip {
+      border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+      padding: 8px 14px; font-size: 13.5px; color: var(--muted);
+      transition: all .15s ease;
+    }
+    .chip:hover { color: var(--text); border-color: var(--text); transform: translateY(-1px); }
+
+    /* Messages */
+    .thread { display: flex; flex-direction: column; gap: 28px; padding-top: 12px; }
+    .msg { animation: rise .28s ease both; }
+    .msg.user { align-self: flex-end; max-width: 80%; }
+    .msg.user .body {
+      background: var(--user); color: var(--user-text);
+      padding: 10px 16px; border-radius: 20px 20px 6px 20px;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    .msg.bot .body { overflow-wrap: anywhere; }
+    .msg.bot .body > :first-child { margin-top: 0; }
+    .msg.bot .body > :last-child { margin-bottom: 0; }
+    .body h2 { font-size: 30px; font-weight: 600; letter-spacing: -.035em; line-height: 1.15; margin: 4px 0 10px; }
+    .body h3, .body h4 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; margin: 22px 0 6px; }
+    .body h3 { font-size: 18px; }
+    .body p { margin: 10px 0; }
+    .body ul, .body ol { margin: 8px 0; padding-left: 20px; }
+    .body li { margin: 4px 0; }
+    .body li::marker { color: var(--faint); }
+    .body a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+    .body a:hover { border-bottom-color: var(--accent); }
+    .body code { font-family: var(--mono); font-size: .88em; background: var(--line); padding: 1px 5px; border-radius: 5px; }
+    .body hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+    .table-wrap { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 12px; }
+    .body table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    .body th, .body td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .body th { font-weight: 600; font-size: 12.5px; color: var(--muted); background: color-mix(in srgb, var(--line) 35%, transparent); }
+    .body tr:last-child td { border-bottom: 0; }
+
+    .meta {
+      margin-top: 10px; display: flex; gap: 10px; align-items: center;
+      font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    }
+    .meta .cost { color: var(--muted); }
+    .msg.error .body { color: #d93025; }
+
+    .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
     .photos figure { margin: 0; }
-    .photos figcaption { font-size: .7rem; color: #6b7780; margin-top: 3px; }
-    .photos a { color: inherit; }
+    .photos img {
+      width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block;
+      border-radius: 12px; background: var(--line);
+    }
+    .photos figcaption { font-size: 11px; color: var(--faint); margin-top: 4px; }
+    .photos figcaption a { color: inherit; }
+
+    /* AI trip image at the end of an itinerary */
+    .trip-image { margin: 18px 0 0; }
+    .trip-image .frame {
+      position: relative; aspect-ratio: 3 / 2; border-radius: 16px; overflow: hidden;
+      background: var(--line);
+    }
+    .trip-image img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fadein .5s ease; }
+    .trip-image .frame.loading::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--surface) 70%, transparent) 50%, transparent 80%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite linear;
+    }
+    .trip-image .status {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      font-size: 13px; color: var(--muted); text-align: center; padding: 16px;
+    }
+    .trip-image figcaption {
+      display: flex; justify-content: space-between; gap: 12px; margin-top: 8px;
+      font-size: 11.5px; color: var(--faint);
+    }
+    .trip-image figcaption .cost { font-family: var(--mono); color: var(--muted); }
+    .ai-badge {
+      position: absolute; left: 12px; top: 12px; z-index: 2;
+      font-size: 11px; font-weight: 500; color: #fff;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .meta button {
+      border: 0; background: none; padding: 0; font: inherit; color: var(--muted);
+      border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .meta button:hover { color: var(--text); border-bottom-color: var(--text); }
+
+    .typing { display: inline-flex; gap: 5px; padding: 6px 0; }
+    .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); animation: blink 1.2s infinite ease-in-out; }
+    .typing i:nth-child(2) { animation-delay: .15s; }
+    .typing i:nth-child(3) { animation-delay: .3s; }
+
+    /* ---------- Composer ---------- */
+    .dock {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      padding: 0 20px calc(18px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, var(--bg) 62%, transparent);
+    }
+    .composer {
+      max-width: 720px; margin: 0 auto;
+      display: flex; align-items: flex-end; gap: 8px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 26px;
+      padding: 8px 8px 8px 20px; box-shadow: var(--shadow);
+      transition: border-color .15s;
+    }
+    .composer:focus-within { border-color: color-mix(in srgb, var(--text) 18%, var(--line)); }
+    .composer textarea {
+      flex: 1; border: 0; outline: 0; resize: none; background: transparent;
+      font: inherit; color: var(--text); padding: 9px 0; max-height: 180px; line-height: 1.5;
+    }
+    .composer textarea::placeholder { color: var(--faint); }
+    .send {
+      width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; border: 0;
+      background: var(--text); color: var(--bg);
+      display: grid; place-items: center; transition: opacity .15s, transform .15s;
+    }
+    .send:hover:not(:disabled) { transform: scale(1.05); }
+    .send:disabled { opacity: .25; cursor: default; }
+    .hint { max-width: 720px; margin: 8px auto 0; text-align: center; font-size: 11.5px; color: var(--faint); }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      .brand small { display: none; }
+      .pill .tokens, .pill .sep { display: none; }
+      main { padding: 4px 16px 170px; }
+      .dock { padding-left: 12px; padding-right: 12px; }
+      .msg.user { max-width: 88%; }
+      .photos { grid-template-columns: 1fr 1fr; }
+      .usage-panel { right: 16px; }
+      .hint { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
+  <header id="header">
+    <div class="brand"><span class="dot" aria-hidden="true"></span>Gogo <small>travel advisor</small></div>
+    <div class="actions">
+      <button class="pill" id="usageBtn" aria-expanded="false" aria-controls="usagePanel" title="Usage this chat">
+        <span class="cost" id="pillCost">$0.00</span><span class="sep"></span><span class="tokens" id="pillTokens">0 tokens</span>
+      </button>
+      <button class="icon-btn" id="newChat" title="New chat" aria-label="New chat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+
+    <section class="usage-panel" id="usagePanel" aria-label="Usage this chat">
+      <div class="usage-label">Spent this chat</div>
+      <div class="usage-total" id="uTotal">$0.0000<span>USD</span></div>
+      <div class="bar" aria-hidden="true"><i class="b-in" id="barIn"></i><i class="b-out" id="barOut"></i><i class="b-search" id="barSearch"></i><i class="b-image" id="barImage"></i></div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--text)"></span>Input <b id="lIn">$0</b></span>
+        <span><span class="sw" style="background:var(--accent)"></span>Output <b id="lOut">$0</b></span>
+        <span><span class="sw" style="background:var(--faint)"></span>Search <b id="lSearch">$0</b></span>
+        <span><span class="sw" style="background:var(--image)"></span>Images <b id="lImage">$0</b></span>
+      </div>
+      <dl class="stats">
+        <div><dt>Input</dt><dd id="sIn">0</dd></div>
+        <div><dt>Output</dt><dd id="sOut">0</dd></div>
+        <div><dt>Cached</dt><dd id="sCached">0</dd></div>
+        <div><dt>Searches</dt><dd id="sSearch">0</dd></div>
+        <div><dt>Images</dt><dd id="sImages">0</dd></div>
+        <div><dt>Replies</dt><dd id="sReplies">0</dd></div>
+      </dl>
+      <ul class="turns" id="turns"></ul>
+      <div class="usage-note" id="priceNote">Estimate based on list prices. Your OpenAI bill is final.</div>
+    </section>
+  </header>
+
   <main>
-    <h1>🧭 Gogo</h1>
-    <div id="chat"></div>
-    <form id="form">
-      <input id="input" placeholder="Where would you like to go?" autocomplete="off" required>
-      <button id="send">Send</button>
-    </form>
+    <section class="hero" id="hero">
+      <h1>Where to <em>next?</em></h1>
+      <p id="welcome">Tell Gogo where you'd like to go. Flights, weather, a day-by-day plan and a budget, in one chat.</p>
+      <div class="chips">
+        <button class="chip">4 days in Lisbon on a budget</button>
+        <button class="chip">Hiking trip in the Alps in July</button>
+        <button class="chip">Family week in Japan</button>
+        <button class="chip">Weekend in Rome from Berlin</button>
+      </div>
+    </section>
+    <section class="thread" id="thread" aria-live="polite"></section>
   </main>
+
+  <div class="dock">
+    <form class="composer" id="form">
+      <textarea id="input" rows="1" placeholder="Ask Gogo to plan a trip…" aria-label="Message"></textarea>
+      <button class="send" id="send" type="submit" aria-label="Send" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </form>
+    <div class="hint">Enter to send · Shift + Enter for a new line</div>
+  </div>
 
   <script>
     // The browser only talks to *your* server (/api/chat). It never sees the API key.
-    const chat = document.getElementById("chat");
-    const input = document.getElementById("input");
-    const send = document.getElementById("send");
-    let messages = [];
+    const $ = (id) => document.getElementById(id);
+    const thread = $("thread"), hero = $("hero"), input = $("input"), send = $("send");
+    let messages = [];          // conversation sent to the server each turn
+    let busy = false;
+    let totals = newTotals();   // usage for this chat
+    let turns = [];             // per-reply cost
 
-    function add(role, text, cls = "") {
-      const div = document.createElement("div");
-      div.className = `msg ${role} ${cls}`;
-      div.textContent = text;          // textContent: safe, no HTML injection
-      chat.appendChild(div);
-      div.scrollIntoView({ block: "end" });
-      return div;
+    function newTotals() {
+      return { input_tokens: 0, output_tokens: 0, cached_tokens: 0, web_searches: 0, images: 0,
+               cost: 0, cin: 0, cout: 0, csearch: 0, cimage: 0, priced: true };
     }
 
-    function addPhotos(bubble, photos) {
+    // ---------- Formatting ----------
+    const nf = new Intl.NumberFormat("en-US");
+    function usd(v) {
+      if (v == null) return "n/a";
+      if (v === 0) return "$0.00";
+      if (v < 0.0001) return "<$0.0001";
+      return "$" + v.toFixed(v < 1 ? 4 : 2);
+    }
+    function compact(n) {
+      return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
+    }
+
+    // ---------- Markdown (escape first, so model text can't inject HTML) ----------
+    function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+    function inline(s) {
+      return s
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+        .replace(/(^|[\s(])_([^_\s][^_]*)_(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }
+    function renderMarkdown(text) {
+      const lines = esc(text).split("\n");
+      let html = "", list = null, para = [];
+      const flush = () => { if (para.length) { html += `<p>${inline(para.join("<br>"))}</p>`; para = []; } };
+      const close = () => { if (list) { html += `</${list}>`; list = null; } };
+      const cells = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => inline(c.trim()));
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const next = (lines[i + 1] || "").trim();
+        if (line.startsWith("|") && /^\|?\s*:?-{2,}/.test(next)) {          // table
+          flush(); close();
+          let t = `<div class="table-wrap"><table><thead><tr>${cells(line).map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>`;
+          i += 2;
+          while (i < lines.length && lines[i].trim().startsWith("|")) {
+            t += `<tr>${cells(lines[i]).map((c) => `<td>${c}</td>`).join("")}</tr>`; i++;
+          }
+          html += t + "</tbody></table></div>"; i--; continue;
+        }
+        const h = line.match(/^(#{1,6})\s+(.*)/);
+        const ul = line.match(/^[-*•]\s+(.*)/);
+        const ol = line.match(/^\d+[.)]\s+(.*)/);
+        if (!line) { flush(); close(); }
+        else if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { flush(); close(); html += "<hr>"; }
+        else if (h) {
+          flush(); close();
+          const tag = h[1].length === 1 ? "h2" : h[1].length === 2 ? "h3" : "h4";   // "# Trip name" becomes the title
+          html += `<${tag}>${inline(h[2])}</${tag}>`;
+        }
+        else if (ul || ol) {
+          flush(); const type = ul ? "ul" : "ol";
+          if (list !== type) { close(); html += `<${type}>`; list = type; }
+          html += `<li>${inline((ul || ol)[1])}</li>`;
+        } else { close(); para.push(line); }
+      }
+      flush(); close();
+      return html;
+    }
+
+    // ---------- Messages ----------
+    function addMessage(role, text) {
+      hero.hidden = true;
+      const msg = document.createElement("div");
+      msg.className = `msg ${role}`;
+      const body = document.createElement("div");
+      body.className = "body";
+      if (role === "user") body.textContent = text; else body.innerHTML = renderMarkdown(text);
+      msg.appendChild(body);
+      thread.appendChild(msg);
+      msg.scrollIntoView({ behavior: "smooth", block: "end" });
+      return msg;
+    }
+
+    function addPhotos(msg, photos) {
       if (!photos || !photos.length) return;
       const grid = document.createElement("div");
       grid.className = "photos";
       for (const p of photos) {
         const fig = document.createElement("figure");
-        const img = document.createElement("img");
-        img.src = p.url; img.alt = p.description || ""; img.loading = "lazy";
+        const img = Object.assign(document.createElement("img"), { src: p.url, alt: p.description || "", loading: "lazy" });
         const cap = document.createElement("figcaption");
         const who = Object.assign(document.createElement("a"), { href: p.photographer_url, target: "_blank", rel: "noopener", textContent: p.photographer });
         const site = Object.assign(document.createElement("a"), { href: p.unsplash_url, target: "_blank", rel: "noopener", textContent: "Unsplash" });
-        cap.append("Photo by ", who, " on ", site);   // credit required by Unsplash
+        cap.append("Photo by ", who, " on ", site);     // credit required by Unsplash
         fig.append(img, cap);
         grid.appendChild(fig);
       }
-      bubble.appendChild(grid);
+      msg.appendChild(grid);
     }
 
-    fetch("/api/welcome").then(r => r.json()).then(d => add("assistant", d.message));
+    function addMeta(msg, data) {
+      const u = data.usage || {};
+      const tokens = (u.input_tokens || 0) + (u.output_tokens || 0);
+      if (!tokens && !data.is_itinerary) return;
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      if (tokens) {
+        meta.innerHTML = `<span>${nf.format(tokens)} tokens</span><span>·</span><span class="cost">${usd(data.cost_usd)}</span>`
+          + (u.web_searches ? `<span>·</span><span>${u.web_searches} search${u.web_searches > 1 ? "es" : ""}</span>` : "");
+      }
+      if (data.is_itinerary) {                       // the itinerary is Markdown: offer it as a file
+        if (tokens) meta.insertAdjacentHTML("beforeend", "<span>·</span>");
+        const dl = document.createElement("button");
+        dl.type = "button"; dl.textContent = "Download .md";
+        dl.addEventListener("click", () => downloadMarkdown(data.reply));
+        meta.appendChild(dl);
+      }
+      msg.appendChild(meta);
+    }
 
-    document.getElementById("form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
+    function downloadMarkdown(md) {
+      const title = (md.match(/^#\s+(.+)$/m) || [, "itinerary"])[1];
+      const name = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "itinerary";
+      const url = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+      const a = Object.assign(document.createElement("a"), { href: url, download: `${name}.md` });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // ---------- AI trip image (requested after the itinerary text has arrived) ----------
+    async function addTripImage(msg, prompt) {
+      const fig = document.createElement("figure");
+      fig.className = "trip-image";
+      fig.innerHTML = `<div class="frame loading"><span class="ai-badge">AI-generated</span>
+        <div class="status">Creating an image of your trip…</div></div>
+        <figcaption><span>AI-generated image of this itinerary</span><span class="cost"></span></figcaption>`;
+      const meta = msg.querySelector(".meta");
+      msg.insertBefore(fig, meta || null);           // keep the token line at the very end
+      const frame = fig.querySelector(".frame");
+      try {
+        const res = await fetch("/api/trip-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(errorText(data, res.status));
+        const img = new Image();
+        img.alt = "AI-generated illustration of the planned trip";
+        img.src = data.image;
+        await img.decode().catch(() => {});
+        frame.classList.remove("loading");
+        frame.querySelector(".status").remove();
+        frame.appendChild(img);
+        fig.querySelector(".cost").textContent = `${data.model} · ${usd(data.cost_usd)}`;
+        recordImage(data);
+      } catch (err) {
+        frame.classList.remove("loading");
+        frame.style.aspectRatio = "auto";
+        frame.querySelector(".status").style.position = "static";
+        frame.querySelector(".status").textContent = `Couldn't create the trip image: ${err.message}`;
+        frame.querySelector(".ai-badge").remove();
+      }
+    }
+
+    // ---------- Usage ----------
+    function recordUsage(data) {
+      const u = data.usage || {};
+      if (!u.model_calls) return;
+      totals.input_tokens += u.input_tokens || 0;
+      totals.output_tokens += u.output_tokens || 0;
+      totals.cached_tokens += u.cached_tokens || 0;
+      totals.web_searches += u.web_searches || 0;
+      if (data.cost_usd == null) totals.priced = false;
+      else {
+        totals.cost += data.cost_usd;
+        const b = data.cost_breakdown || {};
+        totals.cin += b.input || 0; totals.cout += b.output || 0; totals.csearch += b.search || 0;
+      }
+      turns.push({ label: `Reply ${turns.filter((t) => !t.image).length + 1} · ${nf.format((u.input_tokens || 0) + (u.output_tokens || 0))} tokens`,
+                   cost: data.cost_usd });
+      renderUsage();
+    }
+
+    function recordImage(data) {
+      totals.images += 1;
+      if (data.cost_usd == null) totals.priced = false;
+      else { totals.cost += data.cost_usd; totals.cimage += data.cost_usd; }
+      turns.push({ label: `Trip image · ${data.model}`, cost: data.cost_usd, image: true });
+      renderUsage();
+    }
+
+    function renderUsage() {
+      const t = totals, tokens = t.input_tokens + t.output_tokens;
+      const cost = t.priced ? t.cost : null;
+      $("pillCost").textContent = usd(cost);
+      $("pillTokens").textContent = `${compact(tokens)} tokens`;
+      $("uTotal").innerHTML = `${cost == null ? "n/a" : "$" + cost.toFixed(4)}<span>USD</span>`;
+      const sum = t.cin + t.cout + t.csearch + t.cimage || 1;
+      $("barIn").style.width = `${(t.cin / sum) * 100}%`;
+      $("barOut").style.width = `${(t.cout / sum) * 100}%`;
+      $("barSearch").style.width = `${(t.csearch / sum) * 100}%`;
+      $("barImage").style.width = `${(t.cimage / sum) * 100}%`;
+      $("lIn").textContent = usd(t.cin); $("lOut").textContent = usd(t.cout);
+      $("lSearch").textContent = usd(t.csearch); $("lImage").textContent = usd(t.cimage);
+      $("sIn").textContent = compact(t.input_tokens);
+      $("sOut").textContent = compact(t.output_tokens);
+      $("sCached").textContent = compact(t.cached_tokens);
+      $("sSearch").textContent = t.web_searches;
+      $("sImages").textContent = t.images;
+      $("sReplies").textContent = turns.filter((x) => !x.image).length;
+      $("turns").innerHTML = turns.map((x) =>
+        `<li><span>${x.label}</span><span>${usd(x.cost)}</span></li>`
+      ).reverse().join("");
+    }
+
+    fetch("/api/pricing").then((r) => r.json()).then((p) => {
+      if (p.input_per_1m == null) {
+        $("priceNote").textContent = `No price set for ${p.model}: add it to PRICES in main.py to see costs.`;
+        return;
+      }
+      $("priceNote").textContent = `Estimate for ${p.model}: $${p.input_per_1m} input · $${p.output_per_1m} output per 1M tokens, `
+        + `$${(p.web_search_per_call * 1000).toFixed(0)} per 1k web searches; images by ${p.image_model} (${p.image_quality}). `
+        + `Your OpenAI bill is final.`;
+    }).catch(() => {});
+
+    // ---------- Sending ----------
+    function errorText(data, status) {
+      const d = data && data.detail;
+      if (typeof d === "string") return d;
+      if (Array.isArray(d)) return d.map((e) => e.msg || JSON.stringify(e)).join("; ");
+      return `Something went wrong (error ${status}).`;
+    }
+
+    function setBusy(v) { busy = v; send.disabled = v || !input.value.trim(); }
+
+    async function ask(text) {
+      text = text.trim();
+      if (!text || busy) return;
+      input.value = ""; autosize();
       messages.push({ role: "user", content: text });
-      add("user", text);
-      send.disabled = true;
-      const thinking = add("assistant", "Gogo is planning…");
+      addMessage("user", text);
+      setBusy(true);
+
+      const pending = addMessage("bot", "");
+      pending.querySelector(".body").innerHTML = '<span class="typing" aria-label="Gogo is thinking"><i></i><i></i><i></i></span>';
+
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: messages.slice(-40) }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-        thinking.textContent = data.reply;
-        addPhotos(thinking, data.photos);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(errorText(data, res.status));
+
+        pending.querySelector(".body").innerHTML = renderMarkdown(data.reply);
+        addPhotos(pending, data.photos);
+        addMeta(pending, data);
+        recordUsage(data);
         messages.push({ role: "assistant", content: data.reply });
+        if (data.image_prompt) addTripImage(pending, data.image_prompt);  // runs in the background
       } catch (err) {
-        messages.pop();
-        thinking.textContent = `⚠️ ${err.message}`;
-        thinking.classList.add("error");
+        messages.pop();  // forget the failed question so it can be retried
+        pending.classList.add("error");
+        pending.querySelector(".body").textContent = err.message;
       } finally {
-        send.disabled = false;
+        setBusy(false);
         input.focus();
       }
+    }
+
+    function newChat() {
+      messages = []; turns = []; totals = newTotals();
+      thread.innerHTML = ""; hero.hidden = false;
+      renderUsage(); input.focus();
+    }
+
+    // ---------- Events ----------
+    function autosize() {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 180) + "px";
+      send.disabled = busy || !input.value.trim();
+    }
+    input.addEventListener("input", autosize);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); }
     });
+    $("form").addEventListener("submit", (e) => { e.preventDefault(); ask(input.value); });
+    document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => ask(c.textContent)));
+    $("newChat").addEventListener("click", newChat);
+
+    const panel = $("usagePanel"), usageBtn = $("usageBtn");
+    usageBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = panel.classList.toggle("open");
+      usageBtn.setAttribute("aria-expanded", open);
+    });
+    document.addEventListener("click", (e) => {
+      if (!panel.contains(e.target)) { panel.classList.remove("open"); usageBtn.setAttribute("aria-expanded", "false"); }
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") panel.classList.remove("open"); });
+    window.addEventListener("scroll", () => $("header").classList.toggle("scrolled", scrollY > 4), { passive: true });
+
+    renderUsage();
+    input.focus();
   </script>
 </body>
 </html>
