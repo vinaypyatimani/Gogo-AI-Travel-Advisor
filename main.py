@@ -5,7 +5,10 @@ The API key is never written in this file:
 - On Vercel it comes from Project Settings -> Environment Variables.
 Both end up in os.environ, so the code reads it the same way everywhere.
 """
+import json
 import os
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Literal
 
@@ -80,6 +83,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+    photos: list[dict] = []
 
 # --- Tool functions ----------------------------------------------------------
 
@@ -195,6 +199,70 @@ AVAILABLE_FUNCTIONS = {
     "find_photos": find_photos,
 }
 
+MAX_TOOL_ROUNDS = 5  # stops the model from looping over tool calls forever
+
+
+def run_tool(name: str, arguments: str) -> dict:
+    """Run one of our functions. Errors go back to the model instead of crashing."""
+    func = AVAILABLE_FUNCTIONS.get(name)
+    if func is None:
+        return {"error": f"Unknown tool: {name}"}
+    try:
+        return func(**json.loads(arguments))
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def format_sources(response) -> str:
+    """Web-search citations as Markdown links (OpenAI requires showing them)."""
+    seen, links = set(), []
+    for item in response.output:
+        if item.type != "message":
+            continue
+        for part in getattr(item, "content", None) or []:
+            for ann in getattr(part, "annotations", None) or []:
+                if ann.type == "url_citation" and ann.url not in seen:
+                    seen.add(ann.url)
+                    links.append(f"- [{ann.title or ann.url}]({ann.url})")
+    return "\n\nSources:\n" + "\n".join(links) if links else ""
+
+
+def get_reply(history: list[dict]) -> tuple[str, list[dict]]:
+    """Ask the model, run any functions it requests, and return (reply, photos).
+
+    web_search runs on OpenAI's side automatically. Our own functions
+    (get_weather, search_flights, find_photos) only come back as *requests*,
+    so we run them here and send the results back until the model answers.
+    """
+    client = get_client()
+    photos: list[dict] = []
+    response = client.responses.create(model=MODEL, input=history, tools=TOOLS)
+
+    for _ in range(MAX_TOOL_ROUNDS):
+        calls = [item for item in response.output if item.type == "function_call"]
+        if not calls:
+            return response.output_text + format_sources(response), photos
+
+        outputs = []
+        for call in calls:
+            result = run_tool(call.name, call.arguments)
+            if call.name == "find_photos" and "photos" in result:
+                photos.extend(result["photos"])
+                # The model only needs to know what was shown, not the URLs
+                result = {"shown_to_user": [p["description"] for p in result["photos"]]}
+            outputs.append({
+                "type": "function_call_output",
+                "call_id": call.call_id,
+                "output": json.dumps(result),
+            })
+
+        # Send the results back; previous_response_id carries the earlier context
+        response = client.responses.create(
+            model=MODEL, previous_response_id=response.id, input=outputs, tools=TOOLS
+        )
+
+    return "Sorry, I couldn't finish planning that. Please try rephrasing.", photos
+
 
 # --- Routes -----------------------------------------------------------------------------
 
@@ -229,10 +297,10 @@ def chat(req: ChatRequest):
     ]
 
     try:
-        response = get_client().responses.create(model=MODEL, input=history, tools=TOOLS)
+        reply, photos = get_reply(history)
     except OpenAIError as exc:
         # Log details on the server, return a generic message to the browser
         print(f"OpenAI error: {exc!r}")
         raise HTTPException(502, "The AI service is unavailable right now. Please try again.")
 
-    return ChatResponse(reply=response.output_text)
+    return ChatResponse(reply=reply, photos=photos)

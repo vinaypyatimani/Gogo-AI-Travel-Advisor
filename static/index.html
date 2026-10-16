@@ -19,6 +19,11 @@
     input { flex: 1; padding: 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; }
     button { padding: 0 18px; border: 0; border-radius: 12px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
     button:disabled { opacity: .5; }
+    .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; white-space: normal; }
+    .photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; display: block; background: var(--line); }
+    .photos figure { margin: 0; }
+    .photos figcaption { font-size: .7rem; color: #6b7780; margin-top: 3px; }
+    .photos a { color: inherit; }
   </style>
 </head>
 <body>
@@ -47,6 +52,24 @@
       return div;
     }
 
+    function addPhotos(bubble, photos) {
+      if (!photos || !photos.length) return;
+      const grid = document.createElement("div");
+      grid.className = "photos";
+      for (const p of photos) {
+        const fig = document.createElement("figure");
+        const img = document.createElement("img");
+        img.src = p.url; img.alt = p.description || ""; img.loading = "lazy";
+        const cap = document.createElement("figcaption");
+        const who = Object.assign(document.createElement("a"), { href: p.photographer_url, target: "_blank", rel: "noopener", textContent: p.photographer });
+        const site = Object.assign(document.createElement("a"), { href: p.unsplash_url, target: "_blank", rel: "noopener", textContent: "Unsplash" });
+        cap.append("Photo by ", who, " on ", site);   // credit required by Unsplash
+        fig.append(img, cap);
+        grid.appendChild(fig);
+      }
+      bubble.appendChild(grid);
+    }
+
     fetch("/api/welcome").then(r => r.json()).then(d => add("assistant", d.message));
 
     document.getElementById("form").addEventListener("submit", async (e) => {
@@ -67,6 +90,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
         thinking.textContent = data.reply;
+        addPhotos(thinking, data.photos);
         messages.push({ role: "assistant", content: data.reply });
       } catch (err) {
         messages.pop();
