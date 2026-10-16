@@ -81,6 +81,120 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
+# --- Tool functions ----------------------------------------------------------
+
+def get_weather(city: str) -> dict:
+    # Stub: replace with a real weather API
+    return {"city": city, "temp_c": 22, "conditions": "sunny"}
+
+
+def search_flights(origin: str, destination: str, date: str) -> dict:
+    # Stub: replace with a real flight API (e.g. Duffel or SerpApi)
+    return {
+        "origin": origin,
+        "destination": destination,
+        "date": date,
+        "flights": [
+            {"airline": "ExampleAir", "depart": "08:15", "price_eur": 129},
+            {"airline": "SampleJet", "depart": "17:40", "price_eur": 98},
+        ],
+    }
+
+
+def find_photos(query: str, count: int) -> dict:
+    """Search Unsplash for landscape photos. Needs UNSPLASH_ACCESS_KEY."""
+    key = os.getenv("UNSPLASH_ACCESS_KEY")
+    if not key:
+        return {"error": "Photos are unavailable: UNSPLASH_ACCESS_KEY is not set."}
+
+    params = urllib.parse.urlencode(
+        {"query": query, "per_page": max(1, min(count, 6)), "orientation": "landscape"}
+    )
+    request = urllib.request.Request(
+        f"https://api.unsplash.com/search/photos?{params}",
+        headers={"Authorization": f"Client-ID {key}", "Accept-Version": "v1"},
+    )
+    with urllib.request.urlopen(request, timeout=10) as resp:
+        data = json.load(resp)
+
+    utm = "?utm_source=wanda_travel_advisor&utm_medium=referral"  # required by Unsplash
+    photos = [
+        {
+            "url": p["urls"]["regular"],
+            "description": p.get("alt_description") or query,
+            "photographer": p["user"]["name"],
+            "photographer_url": p["user"]["links"]["html"] + utm,
+            "unsplash_url": "https://unsplash.com/" + utm,
+        }
+        for p in data.get("results", [])
+    ]
+    return {"query": query, "photos": photos}
+
+
+# --- Tool schemas (what the model sees) --------------------------------------
+
+TOOLS = [
+    {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "City name, e.g. Lisbon"},
+            },
+            "required": ["city"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+    {
+        "type": "function",
+        "name": "search_flights",
+        "description": "Search one-way flights between two cities on a given date.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "origin": {"type": "string", "description": "Departure city or airport code"},
+                "destination": {"type": "string", "description": "Arrival city or airport code"},
+                "date": {"type": "string", "description": "Travel date, YYYY-MM-DD"},
+            },
+            "required": ["origin", "destination", "date"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+    {
+        "type": "function",
+        "name": "find_photos",
+        "description": (
+            "Find high-quality photos of a destination, landmark, or activity to show "
+            "the user. The photos are displayed automatically below your reply."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "What to photograph, e.g. 'Lisbon Alfama', 'Santorini sunset'",
+                },
+                "count": {"type": "integer", "description": "Number of photos, 1-6 (usually 3)"},
+            },
+            "required": ["query", "count"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+    # Built-in tool: OpenAI runs the search itself, so it needs no Python function.
+    {"type": "web_search"},
+]
+
+AVAILABLE_FUNCTIONS = {
+    "get_weather": get_weather,
+    "search_flights": search_flights,
+    "find_photos": find_photos,
+}
+
 
 # --- Routes -----------------------------------------------------------------------------
 
@@ -115,7 +229,7 @@ def chat(req: ChatRequest):
     ]
 
     try:
-        response = get_client().responses.create(model=MODEL, input=history)
+        response = get_client().responses.create(model=MODEL, input=history, tools=TOOLS)
     except OpenAIError as exc:
         # Log details on the server, return a generic message to the browser
         print(f"OpenAI error: {exc!r}")
